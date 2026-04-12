@@ -33,8 +33,11 @@ router.post('/', async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to submit report' });
+    console.error('GET /api/reports failed:', err);
+    res.status(500).json({
+      error: 'Failed to fetch summary',
+      details: err.message
+    });
   }
 });
 
