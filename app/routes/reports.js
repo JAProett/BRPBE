@@ -1,4 +1,5 @@
 import express from 'express';
+import pool from '../db.js';
 import {
   submitReport,
   getSummary
@@ -38,6 +39,25 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Invalid status'
+      });
+    }
+
+        const recentByDevice = await pool.query(
+      `
+      SELECT COUNT(*) AS count
+      FROM road_reports
+      WHERE device_hash = $1
+        AND created_at >= NOW() - INTERVAL '2 minutes'
+      `,
+      [device_hash]
+    );
+
+    const recentCount = Number(recentByDevice.rows[0].count ?? 0);
+
+    if (recentCount >= 8) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many updates in a short period. Please wait a minute and try again.'
       });
     }
 
