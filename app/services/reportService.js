@@ -1,5 +1,4 @@
 import pool from '../db.js';
-import { canSubmitReport } from '../utils/cooldown.js';
 
 // Submit a new report
 export async function submitReport({
@@ -7,30 +6,23 @@ export async function submitReport({
   reported_status,
   device_hash
 }) {
-  // cooldown check
-  const allowed = await canSubmitReport(segment_id, device_hash);
-
-  if (!allowed) {
-    return {
-      success: false,
-      message: 'You already reported recently for this segment'
-    };
-  }
-
-  // insert report
   await pool.query(
     `
-    INSERT INTO road_reports (segment_id, reported_status, device_hash)
-    VALUES ($1, $2, $3)
+    INSERT INTO road_reports (segment_id, reported_status, device_hash, created_at)
+    VALUES ($1, $2, $3, NOW())
+    ON CONFLICT (device_hash, segment_id)
+    DO UPDATE SET
+      reported_status = EXCLUDED.reported_status,
+      created_at = NOW()
     `,
     [segment_id, reported_status, device_hash]
   );
 
-  // return updated summary
   const summary = await getSummary(segment_id);
 
   return {
     success: true,
+    message: 'Updated your report',
     summary
   };
 }
