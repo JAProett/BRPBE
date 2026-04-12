@@ -25,19 +25,32 @@ router.post('/', async (req, res) => {
   try {
     const { segment_id, reported_status, device_hash } = req.body;
 
+    const allowedStatuses = ['open', 'closed', 'ungated'];
+
+    if (!segment_id || !reported_status || !device_hash) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+
+    if (!allowedStatuses.includes(reported_status.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status'
+      });
+    }
+
     const result = await submitReport({
       segment_id,
-      reported_status,
+      reported_status: reported_status.toLowerCase(),
       device_hash
     });
 
     res.json(result);
   } catch (err) {
-    console.error('GET /api/reports failed:', err);
-    res.status(500).json({
-      error: 'Failed to fetch summary',
-      details: err.message
-    });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to submit report' });
   }
 });
 
