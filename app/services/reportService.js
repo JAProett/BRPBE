@@ -31,8 +31,10 @@ export async function submitReport({
 export async function getSummary(segment_id) {
   const result = await pool.query(
     `
-    WITH recent_reports AS (
-      SELECT
+    WITH latest_reports AS (
+      SELECT DISTINCT ON (device_hash, segment_id)
+        device_hash,
+        segment_id,
         reported_status,
         created_at,
         CASE
@@ -40,22 +42,23 @@ export async function getSummary(segment_id) {
           WHEN created_at >= NOW() - INTERVAL '3 hours' THEN 0.6
           WHEN created_at >= NOW() - INTERVAL '6 hours' THEN 0.3
           ELSE 0
-        END as weight
+        END AS weight
       FROM road_reports
       WHERE segment_id = $1
         AND created_at >= NOW() - INTERVAL '6 hours'
+      ORDER BY device_hash, segment_id, created_at DESC
     ),
     totals AS (
       SELECT
-        SUM(CASE WHEN reported_status = 'open' THEN weight ELSE 0 END) as open_score,
-        SUM(CASE WHEN reported_status = 'closed' THEN weight ELSE 0 END) as closed_score,
-        SUM(CASE WHEN reported_status = 'ungated' THEN weight ELSE 0 END) as ungated_score,
-        SUM(CASE WHEN reported_status = 'open' THEN 1 ELSE 0 END) as open_count,
-        SUM(CASE WHEN reported_status = 'closed' THEN 1 ELSE 0 END) as closed_count,
-        SUM(CASE WHEN reported_status = 'ungated' THEN 1 ELSE 0 END) as ungated_count,
-        COUNT(*) as report_count,
-        MAX(created_at) as last_reported_at
-      FROM recent_reports
+        SUM(CASE WHEN reported_status = 'open' THEN weight ELSE 0 END) AS open_score,
+        SUM(CASE WHEN reported_status = 'closed' THEN weight ELSE 0 END) AS closed_score,
+        SUM(CASE WHEN reported_status = 'ungated' THEN weight ELSE 0 END) AS ungated_score,
+        SUM(CASE WHEN reported_status = 'open' THEN 1 ELSE 0 END) AS open_count,
+        SUM(CASE WHEN reported_status = 'closed' THEN 1 ELSE 0 END) AS closed_count,
+        SUM(CASE WHEN reported_status = 'ungated' THEN 1 ELSE 0 END) AS ungated_count,
+        COUNT(*) AS report_count,
+        MAX(created_at) AS last_reported_at
+      FROM latest_reports
     )
     SELECT * FROM totals;
     `,
