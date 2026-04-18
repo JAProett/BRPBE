@@ -30,7 +30,7 @@ export async function submitReport({
 // Get aggregated summary
 export async function getSummary(segment_id) {
   const result = await pool.query(
-    `
+  `
     WITH latest_reports AS (
       SELECT DISTINCT ON (device_hash, segment_id)
         device_hash,
@@ -38,24 +38,25 @@ export async function getSummary(segment_id) {
         reported_status,
         created_at,
         CASE
-          WHEN created_at >= NOW() - INTERVAL '1 hour' THEN 1.0
-          WHEN created_at >= NOW() - INTERVAL '3 hours' THEN 0.6
-          WHEN created_at >= NOW() - INTERVAL '6 hours' THEN 0.3
+          WHEN created_at >= NOW() - INTERVAL '6 hours' THEN 1.0
+          WHEN created_at >= NOW() - INTERVAL '24 hours' THEN 0.7
+          WHEN created_at >= NOW() - INTERVAL '48 hours' THEN 0.4
+          WHEN created_at >= NOW() - INTERVAL '72 hours' THEN 0.2
           ELSE 0
         END AS weight
       FROM road_reports
       WHERE segment_id = $1
-        AND created_at >= NOW() - INTERVAL '6 hours'
+        AND created_at >= NOW() - INTERVAL '72 hours'
       ORDER BY device_hash, segment_id, created_at DESC
     ),
     totals AS (
       SELECT
-        SUM(CASE WHEN reported_status = 'open' THEN weight ELSE 0 END) AS open_score,
-        SUM(CASE WHEN reported_status = 'closed' THEN weight ELSE 0 END) AS closed_score,
-        SUM(CASE WHEN reported_status = 'ungated' THEN weight ELSE 0 END) AS ungated_score,
-        SUM(CASE WHEN reported_status = 'open' THEN 1 ELSE 0 END) AS open_count,
-        SUM(CASE WHEN reported_status = 'closed' THEN 1 ELSE 0 END) AS closed_count,
-        SUM(CASE WHEN reported_status = 'ungated' THEN 1 ELSE 0 END) AS ungated_count,
+        COALESCE(SUM(CASE WHEN reported_status = 'open' THEN weight ELSE 0 END), 0) AS open_score,
+        COALESCE(SUM(CASE WHEN reported_status = 'closed' THEN weight ELSE 0 END), 0) AS closed_score,
+        COALESCE(SUM(CASE WHEN reported_status = 'ungated' THEN weight ELSE 0 END), 0) AS ungated_score,
+        COALESCE(SUM(CASE WHEN reported_status = 'open' THEN 1 ELSE 0 END), 0) AS open_count,
+        COALESCE(SUM(CASE WHEN reported_status = 'closed' THEN 1 ELSE 0 END), 0) AS closed_count,
+        COALESCE(SUM(CASE WHEN reported_status = 'ungated' THEN 1 ELSE 0 END), 0) AS ungated_count,
         COUNT(*) AS report_count,
         MAX(created_at) AS last_reported_at
       FROM latest_reports
